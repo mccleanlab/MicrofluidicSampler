@@ -1,0 +1,163 @@
+//Analyze results, and combine into 1 excel
+import ij.measure.ResultsTable;
+import ij.IJ;
+import org.apache.commons.math3.analysis.function.Sqrt;
+print(new Sqrt().value(25));
+ResultsTable nucRT=new ResultsTable().open(IJ.getFilePath("Select the .csv file of the nuclear intensities"));
+ResultsTable cytRT=new ResultsTable().open(IJ.getFilePath("Select the .csv file of the cytoplasm/dilated intensities"));
+final int AREA=nucRT.getColumnIndex("Area");
+final int MEAN=nucRT.getColumnIndex("Mean");
+final int STDDEV=nucRT.getColumnIndex("StdDev");
+final int MEDIAN=nucRT.getColumnIndex("Median");
+final int X=nucRT.getColumnIndex("X");
+final int Y=nucRT.getColumnIndex("Y");
+final int SLICE=nucRT.getColumnIndex("Slice");
+final int FERET=nucRT.getColumnIndex("Feret");
+final int MINFERET=nucRT.getColumnIndex("MinFeret");
+final int numSlices=nucRT.getValueAsDouble(SLICE,nucRT.getCounter()-1);
+final double MAX_DISTANCE=3;
+
+ResultsTable ratioRT=new ResultsTable();
+			nucRT.addValue("dilated_Area","null");
+			nucRT.addValue("dilated_Mean","null");
+			nucRT.addValue("dilated_Mean_diff","null");
+			nucRT.addValue("cytMeanDiff_to_nucMean","null");
+			nucRT.addValue("nucMean_to_cytMeanDiff","null");	
+					
+			nucRT.addValue("dilated_StdDev","null");
+			nucRT.addValue("dilated_X","null");
+			nucRT.addValue("dilated_Y","null");
+			
+			nucRT.addValue("dilated_Median","null");
+			nucRT.addValue("dilated_Median_diff","null");
+			nucRT.addValue("cytMedianDiff_to_nucMedian","null");
+			nucRT.addValue("nucMedian_to_cytMedianDiff","null");
+			
+			nucRT.addValue("dilated_Slice","null");
+			nucRT.addValue("distance","null");
+
+
+double getDistance(ResultsTable rt1, int row1,ResultsTable rt2, int row2){
+	double dX_sqr=(rt1.getValueAsDouble(X,row1)-rt2.getValueAsDouble(X,row2));
+	dX_sqr=dX_sqr*dX_sqr;
+	double dY_sqr=(rt1.getValueAsDouble(Y,row1)-rt2.getValueAsDouble(Y,row2));
+	dY_sqr=dY_sqr*dY_sqr;
+	return new Sqrt().value(dX_sqr+dY_sqr);
+}
+double getDiff(double val1, double area1_larger, double val2, double area2_smaller){
+	return ((val1*area1_larger)-(val2*area2_smaller))/(area1_larger-area2_smaller);
+}
+
+int nucRow=0;
+for (int i=1;i<=numSlices;i++){
+	ratioRT.updateResults();
+	nucRT.updateResults();
+	cytRT.updateResults();
+	
+
+
+	print("working on slice: "+i);
+	while((nucRT.getCounter()-1)>0&&(int)nucRT.getValueAsDouble(SLICE,nucRow)<i){
+		nucRow++;
+		}
+	while(nucRow<nucRT.getCounter()&&(int)nucRT.getValueAsDouble(SLICE,nucRow)==i){
+		int cytRow=0;
+		int closestCytRow=-1;
+		double shortestDistance =100;
+		double tempDistance=100;
+		while((int)cytRT.getValueAsDouble(SLICE,0)<i&&(cytRT.getCounter()-1)>0){
+		cytRT.deleteRow(0);
+		}
+		
+		while(cytRow<cytRT.getCounter()-1&&(int)cytRT.getValueAsDouble(SLICE,cytRow)==i){
+			tempDistance=getDistance(nucRT,nucRow,cytRT,cytRow);
+			//The nuclear ROI and the dilated ROI must be seperated by less than MAX DISTANCE and the dilated area must be between 1.1 and 1.5 times the undilated area
+			if(tempDistance<MAX_DISTANCE&&tempDistance<shortestDistance){//&&cytRT.getValueAsDouble(AREA,cytRow)>1.05*nucRT.getValueAsDouble(AREA,nucRow)&&cytRT.getValueAsDouble(AREA,cytRow)<1.5*nucRT.getValueAsDouble(AREA,nucRow)){
+				shortestDistance=tempDistance;
+				closestCytRow=cytRow;
+			}
+			cytRow++;
+		}
+		if(closestCytRow>-1){
+			double dilated_area=cytRT.getValueAsDouble(AREA,closestCytRow);
+			double dilated_mean=cytRT.getValueAsDouble(MEAN,closestCytRow);
+			double dilated_mean_diff=getDiff(dilated_mean,dilated_area,
+											nucRT.getValueAsDouble(MEAN,nucRow),nucRT.getValueAsDouble(AREA,nucRow));
+			double nucMean_to_cytMeanDiff=nucRT.getValueAsDouble(MEAN,nucRow)/dilated_mean_diff;
+			double cytMeanDiff_to_nucMean=dilated_mean_diff/nucRT.getValueAsDouble(MEAN,nucRow);
+
+
+			double dilated_median=cytRT.getValueAsDouble(MEDIAN,closestCytRow);
+			double dilated_median_diff=getDiff(dilated_median,dilated_area,
+											nucRT.getValueAsDouble(MEDIAN,nucRow),nucRT.getValueAsDouble(AREA,nucRow));
+			double nucMedian_to_cytMedianDiff=nucRT.getValueAsDouble(MEDIAN,nucRow)/dilated_median_diff;
+			double cytMedianDiff_to_nucMedian=dilated_median_diff/nucRT.getValueAsDouble(MEDIAN,nucRow);
+
+			nucRT.setValue("dilated_Area",nucRow,dilated_area);
+			nucRT.setValue("dilated_Mean",nucRow,dilated_mean);
+			nucRT.setValue("dilated_Mean_diff",nucRow,dilated_mean_diff);
+			nucRT.setValue("cytMeanDiff_to_nucMean",nucRow,cytMeanDiff_to_nucMean);
+			nucRT.setValue("nucMean_to_cytMeanDiff",nucRow,nucMean_to_cytMeanDiff);	
+					
+			nucRT.setValue("dilated_StdDev",nucRow,cytRT.getValueAsDouble(STDDEV,closestCytRow));
+			nucRT.setValue("dilated_X",nucRow,cytRT.getValueAsDouble(X,closestCytRow));
+			nucRT.setValue("dilated_Y",nucRow,cytRT.getValueAsDouble(Y,closestCytRow));
+			
+			nucRT.setValue("dilated_Median",nucRow,cytRT.getValueAsDouble(MEDIAN,closestCytRow));
+			nucRT.setValue("dilated_Median_diff",nucRow,dilated_median_diff);
+			nucRT.setValue("cytMedianDiff_to_nucMedian",nucRow,cytMedianDiff_to_nucMedian);
+			nucRT.setValue("nucMedian_to_cytMedianDiff",nucRow,nucMedian_to_cytMedianDiff);
+			
+			nucRT.setValue("dilated_Slice",nucRow,cytRT.getValueAsDouble(SLICE,closestCytRow));
+			nucRT.setValue("original_Slice",nucRow,nucRT.getValueAsDouble(SLICE,nucRow));
+			nucRT.setValue("distance",nucRow,shortestDistance);
+
+			ratioRT.incrementCounter();
+			ratioRT.addValue("cytMeanDiff_to_nucMean",cytMeanDiff_to_nucMean);
+			ratioRT.addValue("Slice",(double)i);
+			ratioRT.addValue("X",nucRT.getValueAsDouble(X,nucRow));
+			ratioRT.addValue("Y",nucRT.getValueAsDouble(Y,nucRow));
+			ratioRT.addValue("Distance",shortestDistance);
+			ratioRT.addValue("MeanDiameter",(nucRT.getValueAsDouble(FERET,nucRow)+nucRT.getValueAsDouble(MINFERET,nucRow))/2.0);
+
+			//remove that row
+			cytRT.deleteRow(closestCytRow);
+			
+		}else{
+			nucRT.setValue("dilated_Area",nucRow,"NA");
+			nucRT.setValue("dilated_Mean",nucRow,"NA");
+			nucRT.setValue("dilated_Mean_diff",nucRow,"NA");
+			nucRT.setValue("cytMeanDiff_to_nucMean",nucRow,"NA");
+			nucRT.setValue("nucMean_to_cytMeanDiff",nucRow,"NA");
+
+
+			
+			nucRT.setValue("dilated_StdDev",nucRow,"NA");
+			nucRT.setValue("dilated_X",nucRow,"NA");
+			nucRT.setValue("dilated_Y",nucRow,"NA");
+			nucRT.setValue("dilated_Median",nucRow,"NA");
+			nucRT.setValue("dilated_Median_diff",nucRow,"NA");
+			nucRT.setValue("cytMedianDiff_to_nucMedian",nucRow,"NA");
+			nucRT.setValue("nucMedian_to_cytMedianDiff",nucRow,"NA");
+			nucRT.setValue("dilated_Slice",nucRow,"NA");
+			nucRT.setValue("distance",nucRow,"NA");
+			
+		}
+		nucRow++;
+	}
+	//clear away the extra cytRows
+	print(cytRT.getCounter()+" ROIs remaining");
+	while(cytRT.getCounter()>0&&(int)cytRT.getValueAsDouble(SLICE,0)<=i){
+			cytRT.deleteRow(0);
+		}
+
+
+
+
+	
+}
+
+ratioRT.show("ratio SAVE THIS SOMEWHERE");
+nucRT.show("nuc + SAVE THIS TABLE SOMEWHERE");
+//cytRT.show("cyt RT");
+IJ.showMessage("DONE. The ratio table will be used later, save it as a .csv file. The nuc + table will not be used, but should be saved because it contains data that you might want later.");

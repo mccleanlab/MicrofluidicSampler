@@ -1,0 +1,138 @@
+import ij.IJ;
+import ij.ImagePlus;
+import ij.plugin.frame.RoiManager;
+import ij.measure.ResultsTable;
+import ij.plugin.ImageCalculator;
+import ij.gui.GenericDialog;
+ImagePlus nuc;
+ImagePlus cyt;
+
+
+//THIS SCRIPT ASSUMES THAT SORTED STACKS FOR EACH CHANNEL ARE AVAILABLE
+
+//THis prompts the user for the images. Nuc would be the HTB2-mCherry images. Cyt would be Hog1-GFP
+nuc = IJ.openImage(IJ.getFilePath("Select the .tif image stack of the fluorescently tagged nuclei (1 channel only)"));
+IJ.run(nuc, "Subtract Background...", "rolling=50");
+cyt = IJ.openImage(IJ.getFilePath("Select the .tif image stack of the fluorescent reporter (1 channel only)"));
+
+//This ensures that the scales are set. (it might be unnecessary)
+nuc.show();
+IJ.run(nuc, "Set Scale...", "distance=1 known=1 pixel=1 unit=µm");
+cyt.show();
+IJ.run(cyt, "Set Scale...", "distance=1 known=1 pixel=1 unit=µm");
+
+
+
+String cytTitle=cyt.getTitle();
+cyt.hide();
+nuc.show();
+IJ.run("Clear Results", "");
+
+//Results tables are the things that look like excel tables. They are very useful, and can easily be saved to .csv files
+//The nucRT will hold data about the intensity of the shuttled fluorescent protein in the region segmented by the nuclear stain
+ResultsTable nucRT=new ResultsTable();
+//cytRT is similar, but the region is dilated. This means that it contains the nucleus plus part of the cytoplasm
+ResultsTable cytRT=new ResultsTable();
+//Measurements of the binary are sent to this table. We don't care about the intensity of the binary, but the results needed to be sent somewhere
+ResultsTable fakeRT=new ResultsTable();
+
+
+
+//These next 3 lines convert the nuclear stain to a binary
+IJ.setAutoThreshold(nuc, "Default dark");
+Prefs.blackBackground = true;
+IJ.run(nuc, "Convert to Mask", "method=Moments background=Dark calculate black");
+
+//The watershed algorithm seperates cells that are touching. But I duplicate the image first so that
+//I can later take the difference and subtract it away. So that I can divide the regions that are merged when I dilate them
+IJ.run(nuc, "Options...", "iterations=1 count=1 black do=Nothing");
+IJ.run(nuc, "Close-", "stack");
+ImagePlus nuc2=nuc.duplicate();
+IJ.run(nuc, "Watershed", "stack");
+IJ.run(nuc, "Set Scale...", "distance=1 known=1 pixel=1 unit=µm");
+
+ImageCalculator ic = new ImageCalculator();
+ImagePlus waterShedLines = ic.run("XOR create stack", nuc, nuc2);
+IJ.run("Options...", "iterations=1 count=1 black"); //Sets the binary commands to be repeated twice
+IJ.run(nuc2, "Open", "stack");
+IJ.run(nuc2, "Dilate", "stack");
+ImagePlus dilatedSeperated = ic.run("Subtract create stack", nuc2, waterShedLines);
+IJ.run(dilatedSeperated, "Watershed", "stack");
+
+// Aug 5, 2016 change. At this point in the code we have the stack of images called "nuc" which is the binary of the nuclear images.
+// this was created on line 43 when the image was "convert(ed) to (a) Mask."
+// We also have the stack of images called "dilatedSeperated" which has the dilated nuclei, but some operations
+// were performed to maintain the boundaries between adjacent nuclei. Now, if we want to erode the nuclei, we can do so here.
+//Note that if you want to erode the nuclei further, increase the number of iterations in the command below.
+IJ.run(nuc, "Options...", "iterations=2 count=1 black do=Nothing");
+IJ.run(nuc, "Erode", "stack");
+dilatedSeperated.show();
+nuc.show();
+//Note that if you want to inspect these, then run the program and close the window which asks you for the directory to save the data in
+
+
+//The previous operations were done acrosss the whole stack. This for loop is for operations that are done image by image
+RoiManager rm = RoiManager.getInstance();
+if (rm==null) rm = new RoiManager();
+String saveDir=IJ.getDirectory("Directory to save nuclear intensity of "+cytTitle);
+for(int i=1;i<=nuc.getNSlices();i++){
+	nuc.setSlice(i);
+	cyt.setSlice(i);
+	dilatedSeperated.setSlice(i);
+	nuc.show();
+	cyt.hide();
+	dilatedSeperated.hide();
+	rm.reset();
+	fakeRT.show("Results");  //for Alex Letourno: Max size is 3.14*13^2 = 531. Min size is 3.14*2.5^2=20
+	IJ.run(nuc, "Analyze Particles...", "size=10-531 pixel circularity=0.50-1.00 display include add slice");
+	fakeRT.reset();
+	fakeRT.show("Binary");
+	nuc.hide();
+	cyt.show();
+	nucRT.show("Results");
+	if(rm.getCount()>0){
+		IJ.run(cyt,"From ROI Manager", "");
+		//IJ.run(nuc,"From ROI Manager", "");
+		IJ.run("Set Measurements...", "area mean standard min centroid center feret's median stack redirect=None decimal=3");
+		rm.runCommand(cyt,"Measure");
+		nucRT.show("nuc data");
+	
+		
+		// Now we want to get the dilated measurement
+	
+		nuc.hide();
+		cyt.hide();
+		dilatedSeperated.show();
+		rm.reset();
+		fakeRT.show("Results");//for Alex Letourno: Max size is 3.14*14^2= 616. Min size is 3.14*3.5^2= 38
+		IJ.run(dilatedSeperated, "Analyze Particles...", "size=38-616 pixel circularity=0.50-1.00 display include add slice");
+		fakeRT.reset();
+		fakeRT.show("Binary");
+		print(i);
+		dilatedSeperated.hide();
+		print("hidden");
+		cyt.show();
+	
+		cytRT.show("Results");
+		if(rm.getCount()>0){
+		IJ.run(cyt,"From ROI Manager", "");
+		IJ.run("Set Measurements...", "area mean standard min centroid center feret's median stack redirect=None decimal=3");
+		rm.runCommand(cyt,"Measure");
+		cytRT.show("cyt data");
+		}
+	}
+	
+	
+	
+}
+
+nucRT.show("nuc data");
+nucRT.saveAs(saveDir+"\\"+cytTitle+"nuclearIntensity.csv");
+
+cytRT.show("cyt data");
+cytRT.saveAs(saveDir+"\\"+cytTitle+"dilatedIntensity.csv");
+nuc.show();
+dilatedSeperated.show();
+cyt.show();
+rm.reset();
+IJ.showMessage("DONE. Nothing here needs to be saved because the necessary results are automatically saved. These are only here for additional exploration.");
