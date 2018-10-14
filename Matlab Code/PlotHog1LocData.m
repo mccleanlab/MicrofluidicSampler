@@ -21,7 +21,7 @@ RatData=RatData{:,:};
 figure
 boxplot(MaxData(:,2), MaxData(:,5),'PlotStyle','compact','Colors','b');
 xticks(0:5:35)
-xticklabels(0:2*5:2*35)
+xticklabels(0:2.4*5:2.4*35)
 title('Hog1 Localization (Max Metric, All Positions)')
 ylim([50 200])
 xlabel('Time (min)', 'Fontsize', 12)
@@ -31,7 +31,7 @@ ylabel('Hog1-GFP Localization (max intensity, a.u.)')
 figure
 boxplot(RatData(:,2), RatData(:,5),'PlotStyle','compact','Colors','k');
 xticks(0:5:35)
-xticklabels(0:2*5:2*35)
+xticklabels(0:2.4*5:2.4*35)
 title('Hog1 Localization (Ratio Metric, All Positions)')
 ylim([0.8 1.6])
 xlabel('Time (min)', 'Fontsize', 12)
@@ -45,7 +45,7 @@ figure
 [I,J]=find(MaxData(:,4)>2);
 boxplot(MaxData(I,2), MaxData(I,5),'PlotStyle','compact','Colors','b');
 xticks(0:5:35)
-xticklabels(0:2*5:2*35)
+xticklabels(0:2.4*5:2.4*35)
 title('Hog1 Localization (Max Metric, Straight Channel)')
 ylim([50 200])
 xlabel('Time (min)', 'Fontsize', 12)
@@ -56,7 +56,7 @@ figure
 [I,J]=find(MaxData(:,4)<3);
 boxplot(MaxData(I,2), MaxData(I,5),'PlotStyle','compact','Colors','b')
 xticks(0:5:35)
-xticklabels(0:2*5:2*35)
+xticklabels(0:2.4*5:2.4*35)
 title('Hog1 Localization (Max Metric, Circular Positions)')
 ylim([50 200])
 xlabel('Time (min)', 'Fontsize', 12)
@@ -67,7 +67,7 @@ figure
 [I,J]=find(RatData(:,4)>2);
 boxplot(RatData(I,2), RatData(I,5),'PlotStyle','compact','Colors','k');
 xticks(0:5:35)
-xticklabels(0:2*5:2*35)
+xticklabels(0:2.4*5:2.4*35)
 title('Hog1 Localization (Ratio Metric, Straight Positions)')
 ylim([0.8 1.6])
 xlabel('Time (min)', 'Fontsize', 12)
@@ -78,7 +78,7 @@ figure
 [I,J]=find(RatData(:,4)<3);
 boxplot(RatData(I,2), RatData(I,5),'PlotStyle','compact','Colors','k')
 xticks(0:5:35)
-xticklabels(0:2*5:2*35)
+xticklabels(0:2.4*5:2.4*35)
 title('Hog1 Localization (Ratio Metric, Circular Positions)')
 ylim([0.8 1.6])
 xlabel('Time (min)', 'Fontsize', 12)
